@@ -10,7 +10,7 @@ st.title("📚 AI 심층 영단어장 (다의어 학습)")
 # 2. Gemini 설정
 try:
     genai.configure(api_key=st.secrets["gemini"]["api_key"])
-    model = genai.GenerativeModel('gemini-2.5-flash')
+    model = genai.GenerativeModel('gemini-1.5-flash')
 except Exception as e:
     st.error(f"Gemini 설정 오류: {e}")
 
