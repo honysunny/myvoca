@@ -6,7 +6,7 @@ import re
 
 # 1. 페이지 설정
 st.set_page_config(page_title="완전체 영단어장", page_icon="🎓", layout="wide")
-st.title("🎓 AI 영단어장 (V4: 도구함 확장)")
+st.title("🎓 AI 영단어장 ")
 
 # 2. Gemini 설정
 try:
@@ -231,4 +231,5 @@ with tab2:
         st.link_button("🦜 Papago (네이버 번역)", "https://papago.naver.com", use_container_width=True)
         st.link_button("📘 Naver 영어사전", "https://en.dict.naver.com", use_container_width=True)
     
+
     st.info("💡 Tip: 'DeepL'은 뉘앙스를 살린 번역에, 'Papago'는 한국어 존댓말/반말 구분에 강합니다!")
