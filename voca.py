@@ -6,12 +6,13 @@ import re
 
 # 1. 페이지 설정
 st.set_page_config(page_title="완전체 영단어장", page_icon="🎓", layout="wide")
-st.title("🎓 AI 영단어장 ")
+st.title("🎓 AI 영단어장 (V5: 품사 구분 강화)")
 
 # 2. Gemini 설정
 try:
     if "gemini" in st.secrets and "api_key" in st.secrets["gemini"]:
         genai.configure(api_key=st.secrets["gemini"]["api_key"])
+        # 사용자님이 찾으신 황금 모델 유지!
         model = genai.GenerativeModel('gemini-2.5-flash-lite')
     else:
         st.error("🚨 Secrets에 API 키가 없습니다.")
@@ -33,18 +34,18 @@ except:
     existing_data = pd.DataFrame(columns=["단어", "뜻", "예문"])
     existing_words = []
 
-# 탭 구성 (탭 이름 변경)
+# 탭 구성
 tab1, tab2 = st.tabs(["📚 단어장 관리", "🧰 영어 공부 도구함"])
 
 # ==========================================
-# 탭 1: 단어장 (기존 기능 유지)
+# 탭 1: 단어장 (프롬프트 업그레이드됨 ⭐)
 # ==========================================
 with tab1:
     with st.expander("🔍 단어/숙어 분석 및 추가", expanded=True):
         with st.form("search_form", clear_on_submit=True):
             col_input, col_btn = st.columns([4, 1])
             with col_input:
-                word_input = st.text_input("단어 또는 숙어 입력", placeholder="예: at your service (오타 자동 보정)")
+                word_input = st.text_input("단어 또는 숙어 입력", placeholder="예: address (명사/동사 뜻 모두 확인)")
             with col_btn:
                 search_submitted = st.form_submit_button("🔍 분석")
 
@@ -54,21 +55,28 @@ with tab1:
                 if not model:
                     st.error("AI 모델 연결 실패")
                 else:
-                    with st.spinner(f"AI가 '{input_word}'를 분석 중..."):
+                    with st.spinner(f"AI가 '{input_word}'의 다양한 품사와 뜻을 분석 중..."):
                         try:
+                            # [핵심 수정] 품사(POS)를 섞어서 보여달라고 강력하게 요청
                             prompt = f"""
-                            Role: Smart Dictionary & Spell Checker
+                            Role: Comprehensive English-Korean Dictionary
                             Input: '{input_word}'
                             
                             Task:
-                            1. Identify the correct English word OR PHRASE (fix typos only).
-                            2. If the input is a valid idiom/phrase, KEEP it.
-                            3. Provide 3 distinct meanings (Korean).
-                            4. Write ONE simple English example sentence for each.
+                            1. Identify the correct word/phrase (fix typos).
+                            2. Select 3 distinct meanings.
+                            3. **CRITICAL:** If the word has multiple Parts of Speech (e.g., Noun AND Verb), YOU MUST INCLUDE BOTH TYPES.
+                            4. Prefix the Korean meaning with the Part of Speech tag: [명사], [동사], [형용사] etc.
                             
                             STRICT Output Format:
-                            CORRECT_WORD: <The Corrected Word or Phrase>
-                            Korean Meaning @@@ English Example Sentence
+                            CORRECT_WORD: <Corrected Word>
+                            [POS] Korean Meaning @@@ English Example Sentence
+                            
+                            Example Output (for 'address'):
+                            CORRECT_WORD: address
+                            [명사] 주소, 거주지 @@@ Please write your address here.
+                            [동사] 연설하다, 말을 걸다 @@@ He addressed the audience.
+                            [동사] (문제를) 다루다, 해결하다 @@@ We need to address this problem.
                             """
                             response = model.generate_content(prompt)
                             st.session_state['analyzed_result'] = response.text
@@ -105,6 +113,7 @@ with tab1:
             raw_meaning = re.sub(r'^[\d\.\-\)\s]+', '', parts[0].strip())
             raw_example = re.sub(r'^[\d\.\-\)\s]+', '', parts[1].strip())
             
+            # 번호만 붙이고 내용은 그대로 (AI가 [명사]라고 쓴 거 그대로 나옴)
             meanings_list.append(f"{i+1}. {raw_meaning}")
             examples_list.append(f"{i+1}. {raw_example}")
         
@@ -119,7 +128,7 @@ with tab1:
         with st.container():
             col1, col2 = st.columns(2)
             with col1:
-                final_meaning = st.text_area("🇰🇷 뜻", value=default_meaning, height=150)
+                final_meaning = st.text_area("🇰🇷 뜻 (품사 포함)", value=default_meaning, height=150)
             with col2:
                 final_example = st.text_area("🇺🇸 예문", value=default_example, height=150)
 
@@ -209,7 +218,7 @@ with tab1:
         st.info("단어를 검색해서 추가해보세요!")
 
 # ==========================================
-# 탭 2: 영어 공부 도구함 (여기가 바뀌었습니다! ⭐)
+# 탭 2: 영어 공부 도구함
 # ==========================================
 with tab2:
     st.header("🧰 유용한 영어 도구 모음")
@@ -217,12 +226,10 @@ with tab2:
     
     st.divider()
 
-    # 보기 좋게 2단으로 나눴습니다
     col_t1, col_t2 = st.columns(2)
 
     with col_t1:
         st.subheader("🤖 AI & 번역")
-        # primary 타입으로 강조
         st.link_button("🚀 Google Gemini (AI 비서)", "https://gemini.google.com", type="primary", use_container_width=True)
         st.link_button("🧠 DeepL (자연스러운 번역)", "https://www.deepl.com/translator", use_container_width=True)
 
@@ -231,8 +238,4 @@ with tab2:
         st.link_button("🦜 Papago (네이버 번역)", "https://papago.naver.com", use_container_width=True)
         st.link_button("📘 Naver 영어사전", "https://en.dict.naver.com", use_container_width=True)
     
-
     st.info("💡 Tip: 'DeepL'은 뉘앙스를 살린 번역에, 'Papago'는 한국어 존댓말/반말 구분에 강합니다!")
-
-
-
