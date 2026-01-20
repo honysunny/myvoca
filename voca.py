@@ -12,7 +12,7 @@ st.title("🎓 AI 영단어장 ")
 try:
     if "gemini" in st.secrets and "api_key" in st.secrets["gemini"]:
         genai.configure(api_key=st.secrets["gemini"]["api_key"])
-        model = genai.GenerativeModel('gemini-2.5-flash')
+        model = genai.GenerativeModel('gemini-1.5-flash')
     else:
         st.error("🚨 Secrets에 API 키가 없습니다.")
         model = None
@@ -233,3 +233,4 @@ with tab2:
     
 
     st.info("💡 Tip: 'DeepL'은 뉘앙스를 살린 번역에, 'Papago'는 한국어 존댓말/반말 구분에 강합니다!")
+
