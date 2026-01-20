@@ -6,7 +6,7 @@ import re
 
 # 1. 페이지 설정
 st.set_page_config(page_title="완전체 영단어장", page_icon="🎓", layout="wide")
-st.title("🎓 AI 영단어장 (Final V2)")
+st.title("🎓 AI 영단어장 (V3: 검색&백업)")
 
 # 2. Gemini 설정
 try:
@@ -37,15 +37,14 @@ except:
 tab1, tab2 = st.tabs(["📚 단어장 관리", "💬 Gemini에게 더 물어보기"])
 
 # ==========================================
-# 탭 1: 단어장 (숙어 지원 & 복사 기능 추가)
+# 탭 1: 단어장
 # ==========================================
 with tab1:
     with st.expander("🔍 단어/숙어 분석 및 추가", expanded=True):
         with st.form("search_form", clear_on_submit=True):
             col_input, col_btn = st.columns([4, 1])
             with col_input:
-                # 안내 문구 수정 (숙어 가능)
-                word_input = st.text_input("단어 또는 숙어 입력 (오타 자동 보정)", placeholder="예: at your service (숙어도 OK!)")
+                word_input = st.text_input("단어 또는 숙어 입력 (오타 자동 보정)", placeholder="예: at your service")
             with col_btn:
                 search_submitted = st.form_submit_button("🔍 분석")
 
@@ -57,25 +56,19 @@ with tab1:
                 else:
                     with st.spinner(f"AI가 '{input_word}'를 분석 중..."):
                         try:
-                            # [핵심 수정] 숙어(Phrase)도 허용하고, 억지로 한 단어로 바꾸지 말라고 지시
                             prompt = f"""
                             Role: Smart Dictionary & Spell Checker
                             Input: '{input_word}'
                             
                             Task:
                             1. Identify the correct English word OR PHRASE (fix typos only).
-                            2. If the input is a valid idiom/phrase (e.g., 'at your service'), KEEP it as a phrase.
+                            2. If the input is a valid idiom/phrase, KEEP it.
                             3. Provide 3 distinct meanings (Korean).
                             4. Write ONE simple English example sentence for each.
                             
                             STRICT Output Format:
                             CORRECT_WORD: <The Corrected Word or Phrase>
                             Korean Meaning @@@ English Example Sentence
-                            
-                            Example Output (for phrase 'make up for'):
-                            CORRECT_WORD: make up for
-                            보상하다, 만회하다 @@@ I will make up for the lost time.
-                            대신하다, 메우다 @@@ Hard work can make up for a lack of talent.
                             """
                             response = model.generate_content(prompt)
                             st.session_state['analyzed_result'] = response.text
@@ -153,39 +146,75 @@ with tab1:
                     except Exception as e:
                         st.error(f"저장 실패: {e}")
 
-    # 목록 보여주기
+    # ========================================================
+    # 🌟 [신규 기능] 목록 필터 & 백업 (에러 없는 안전 구역)
+    # ========================================================
     st.divider()
-    st.subheader(f"📝 저장된 단어장 ({len(existing_data)}개)")
+    
+    # 상단: 제목 + 백업 버튼 + 검색창을 한 줄에 배치
+    col_header, col_backup = st.columns([3, 1])
+    
+    with col_header:
+        st.subheader(f"📝 저장된 단어장 ({len(existing_data)}개)")
+        # 검색창 추가 (내부 데이터만 거르므로 에러 안 남)
+        filter_keyword = st.text_input("📂 내 단어장에서 찾기", placeholder="단어 철자나 뜻으로 검색해보세요...")
 
+    with col_backup:
+        st.write("") # 줄맞춤용 공백
+        st.write("") 
+        if not existing_data.empty:
+            # CSV 다운로드 버튼 (스트림릿 기본 기능, 100% 안전)
+            csv = existing_data.to_csv(index=False).encode('utf-8-sig')
+            st.download_button(
+                label="💾 엑셀 백업",
+                data=csv,
+                file_name='my_voca_backup.csv',
+                mime='text/csv',
+                type='secondary'
+            )
+
+    # 검색 로직 (필터링)
     if not existing_data.empty:
-        for i in sorted(existing_data.index, reverse=True):
-            row = existing_data.loc[i]
-            
-            # [기능 추가] 펼치기 전에 단어를 복사할 수 있게 st.code 활용
-            with st.expander(f"📖 {row['단어']}"):
-                st.caption("👇 오른쪽 아이콘을 누르면 단어가 복사됩니다!")
-                st.code(row['단어'], language="text") # 여기가 복사 버튼 생성하는 마법의 코드
+        # 검색어가 있으면 필터링, 없으면 전체 보여주기
+        if filter_keyword:
+            display_data = existing_data[
+                existing_data['단어'].str.contains(filter_keyword, case=False, na=False) | 
+                existing_data['뜻'].str.contains(filter_keyword, case=False, na=False)
+            ]
+        else:
+            display_data = existing_data
+
+        if display_data.empty:
+            st.info("검색 결과가 없습니다.")
+        else:
+            # 필터링된 데이터만 보여주기
+            for i in sorted(display_data.index, reverse=True):
+                row = display_data.loc[i]
                 
-                c1, c2 = st.columns(2)
-                with c1:
-                    new_meaning = st.text_area("뜻", row['뜻'], key=f"m_{i}", height=100)
-                with c2:
-                    new_example = st.text_area("예문", row['예문'], key=f"e_{i}", height=100)
-                
-                col_save, col_del = st.columns([1, 1])
-                with col_save:
-                    if st.button("💾 수정", key=f"save_{i}"):
-                        existing_data.at[i, "뜻"] = new_meaning
-                        existing_data.at[i, "예문"] = new_example
-                        conn.update(worksheet="Sheet1", data=existing_data)
-                        st.toast("수정 완료!")
-                        st.rerun()
-                with col_del:
-                    if st.button("🗑️ 삭제", key=f"del_{i}"):
-                        updated_data = existing_data.drop(index=i)
-                        conn.update(worksheet="Sheet1", data=updated_data)
-                        st.toast("삭제 완료!")
-                        st.rerun()
+                with st.expander(f"📖 {row['단어']}"):
+                    st.caption("👇 오른쪽 아이콘을 누르면 복사됩니다.")
+                    st.code(row['단어'], language="text")
+                    
+                    c1, c2 = st.columns(2)
+                    with c1:
+                        new_meaning = st.text_area("뜻", row['뜻'], key=f"m_{i}", height=100)
+                    with c2:
+                        new_example = st.text_area("예문", row['예문'], key=f"e_{i}", height=100)
+                    
+                    col_save, col_del = st.columns([1, 1])
+                    with col_save:
+                        if st.button("💾 수정", key=f"save_{i}"):
+                            existing_data.at[i, "뜻"] = new_meaning
+                            existing_data.at[i, "예문"] = new_example
+                            conn.update(worksheet="Sheet1", data=existing_data)
+                            st.toast("수정 완료!")
+                            st.rerun()
+                    with col_del:
+                        if st.button("🗑️ 삭제", key=f"del_{i}"):
+                            updated_data = existing_data.drop(index=i)
+                            conn.update(worksheet="Sheet1", data=updated_data)
+                            st.toast("삭제 완료!")
+                            st.rerun()
     else:
         st.info("단어를 검색해서 추가해보세요!")
 
@@ -196,5 +225,3 @@ with tab2:
     st.header("🤖 AI와 자유롭게 대화하기")
     st.write("단어장 말고 다른 것도 물어보고 싶으신가요? 아래 버튼을 누르면 Gemini로 연결됩니다.")
     st.link_button("🚀 Google Gemini (웹사이트) 열기", "https://gemini.google.com", type="primary")
-
-    #업데이트용 주석입니다
