@@ -6,7 +6,7 @@ import re
 
 # 1. 페이지 설정
 st.set_page_config(page_title="완전체 영단어장", page_icon="🎓", layout="wide")
-st.title("🎓 AI 영단어장 (V3: 검색&백업)")
+st.title("🎓 AI 영단어장 (V4: 도구함 확장)")
 
 # 2. Gemini 설정
 try:
@@ -33,18 +33,18 @@ except:
     existing_data = pd.DataFrame(columns=["단어", "뜻", "예문"])
     existing_words = []
 
-# 탭 구성
-tab1, tab2 = st.tabs(["📚 단어장 관리", "💬 Gemini에게 더 물어보기"])
+# 탭 구성 (탭 이름 변경)
+tab1, tab2 = st.tabs(["📚 단어장 관리", "🧰 영어 공부 도구함"])
 
 # ==========================================
-# 탭 1: 단어장
+# 탭 1: 단어장 (기존 기능 유지)
 # ==========================================
 with tab1:
     with st.expander("🔍 단어/숙어 분석 및 추가", expanded=True):
         with st.form("search_form", clear_on_submit=True):
             col_input, col_btn = st.columns([4, 1])
             with col_input:
-                word_input = st.text_input("단어 또는 숙어 입력 (오타 자동 보정)", placeholder="예: at your service")
+                word_input = st.text_input("단어 또는 숙어 입력", placeholder="예: at your service (오타 자동 보정)")
             with col_btn:
                 search_submitted = st.form_submit_button("🔍 분석")
 
@@ -146,24 +146,18 @@ with tab1:
                     except Exception as e:
                         st.error(f"저장 실패: {e}")
 
-    # ========================================================
-    # 🌟 [신규 기능] 목록 필터 & 백업 (에러 없는 안전 구역)
-    # ========================================================
+    # 목록 및 백업
     st.divider()
-    
-    # 상단: 제목 + 백업 버튼 + 검색창을 한 줄에 배치
     col_header, col_backup = st.columns([3, 1])
     
     with col_header:
         st.subheader(f"📝 저장된 단어장 ({len(existing_data)}개)")
-        # 검색창 추가 (내부 데이터만 거르므로 에러 안 남)
         filter_keyword = st.text_input("📂 내 단어장에서 찾기", placeholder="단어 철자나 뜻으로 검색해보세요...")
 
     with col_backup:
-        st.write("") # 줄맞춤용 공백
-        st.write("") 
+        st.write("")
+        st.write("")
         if not existing_data.empty:
-            # CSV 다운로드 버튼 (스트림릿 기본 기능, 100% 안전)
             csv = existing_data.to_csv(index=False).encode('utf-8-sig')
             st.download_button(
                 label="💾 엑셀 백업",
@@ -173,9 +167,7 @@ with tab1:
                 type='secondary'
             )
 
-    # 검색 로직 (필터링)
     if not existing_data.empty:
-        # 검색어가 있으면 필터링, 없으면 전체 보여주기
         if filter_keyword:
             display_data = existing_data[
                 existing_data['단어'].str.contains(filter_keyword, case=False, na=False) | 
@@ -187,10 +179,8 @@ with tab1:
         if display_data.empty:
             st.info("검색 결과가 없습니다.")
         else:
-            # 필터링된 데이터만 보여주기
             for i in sorted(display_data.index, reverse=True):
                 row = display_data.loc[i]
-                
                 with st.expander(f"📖 {row['단어']}"):
                     st.caption("👇 오른쪽 아이콘을 누르면 복사됩니다.")
                     st.code(row['단어'], language="text")
@@ -219,9 +209,26 @@ with tab1:
         st.info("단어를 검색해서 추가해보세요!")
 
 # ==========================================
-# 탭 2: Gemini 바로가기
+# 탭 2: 영어 공부 도구함 (여기가 바뀌었습니다! ⭐)
 # ==========================================
 with tab2:
-    st.header("🤖 AI와 자유롭게 대화하기")
-    st.write("단어장 말고 다른 것도 물어보고 싶으신가요? 아래 버튼을 누르면 Gemini로 연결됩니다.")
-    st.link_button("🚀 Google Gemini (웹사이트) 열기", "https://gemini.google.com", type="primary")
+    st.header("🧰 유용한 영어 도구 모음")
+    st.write("단어장과 함께 쓰면 좋은 사이트들을 모았습니다. 버튼만 누르세요!")
+    
+    st.divider()
+
+    # 보기 좋게 2단으로 나눴습니다
+    col_t1, col_t2 = st.columns(2)
+
+    with col_t1:
+        st.subheader("🤖 AI & 번역")
+        # primary 타입으로 강조
+        st.link_button("🚀 Google Gemini (AI 비서)", "https://gemini.google.com", type="primary", use_container_width=True)
+        st.link_button("🧠 DeepL (자연스러운 번역)", "https://www.deepl.com/translator", use_container_width=True)
+
+    with col_t2:
+        st.subheader("📚 사전 & 학습")
+        st.link_button("🦜 Papago (네이버 번역)", "https://papago.naver.com", use_container_width=True)
+        st.link_button("📘 Naver 영어사전", "https://en.dict.naver.com", use_container_width=True)
+    
+    st.info("💡 Tip: 'DeepL'은 뉘앙스를 살린 번역에, 'Papago'는 한국어 존댓말/반말 구분에 강합니다!")
