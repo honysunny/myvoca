@@ -12,7 +12,6 @@ st.title("🎓 AI 영단어장 ")
 try:
     if "gemini" in st.secrets and "api_key" in st.secrets["gemini"]:
         genai.configure(api_key=st.secrets["gemini"]["api_key"])
-        # 사용자님이 찾아내신 최적의 모델 유지!
         model = genai.GenerativeModel('gemini-2.5-flash-lite')
     else:
         st.error("🚨 Secrets에 API 키가 없습니다.")
@@ -45,7 +44,7 @@ with tab1:
         with st.form("search_form", clear_on_submit=True):
             col_input, col_btn = st.columns([4, 1])
             with col_input:
-                word_input = st.text_input("단어 또는 숙어 입력", placeholder="예: address (명사/동사 뜻 모두 확인)")
+                word_input = st.text_input("단어 또는 숙어 입력", placeholder="예: address")
             with col_btn:
                 search_submitted = st.form_submit_button("🔍 분석")
 
@@ -55,9 +54,8 @@ with tab1:
                 if not model:
                     st.error("AI 모델 연결 실패")
                 else:
-                    with st.spinner(f"AI가 '{input_word}'의 다양한 품사와 뜻을 분석 중..."):
+                    with st.spinner(f"AI가 '{input_word}'를 분석 중..."):
                         try:
-                            # 품사(POS) 구분 프롬프트 유지
                             prompt = f"""
                             Role: Comprehensive English-Korean Dictionary
                             Input: '{input_word}'
@@ -66,7 +64,7 @@ with tab1:
                             1. Identify the correct word/phrase (fix typos).
                             2. Select 3 distinct meanings.
                             3. **CRITICAL:** If the word has multiple Parts of Speech (e.g., Noun AND Verb), YOU MUST INCLUDE BOTH TYPES.
-                            4. Prefix the Korean meaning with the Part of Speech tag: [명사], [동사], [형용사] etc.
+                            4. Prefix the Korean meaning with the Part of Speech tag: [명사], [동사] etc.
                             
                             STRICT Output Format:
                             CORRECT_WORD: <Corrected Word>
@@ -148,10 +146,9 @@ with tab1:
                     except Exception as e:
                         st.error(f"저장 실패: {e}")
 
-    # 목록 및 백업/링크 (여기가 수정되었습니다! ⭐)
+    # 목록 및 백업
     st.divider()
     
-    # 버튼 공간을 좀 더 넉넉하게 잡음 (2:1)
     col_header, col_buttons = st.columns([2, 1])
     
     with col_header:
@@ -159,14 +156,10 @@ with tab1:
         filter_keyword = st.text_input("📂 내 단어장에서 찾기", placeholder="단어 철자나 뜻으로 검색해보세요...")
 
     with col_buttons:
-        st.write("") # 줄 맞춤용
         st.write("")
-        
-        # 버튼 두 개를 나란히 배치하기 위해 작은 컬럼 생성
+        st.write("")
         b_col1, b_col2 = st.columns(2)
-        
         with b_col1:
-            # 1. 엑셀 백업 버튼
             if not existing_data.empty:
                 csv = existing_data.to_csv(index=False).encode('utf-8-sig')
                 st.download_button(
@@ -177,18 +170,12 @@ with tab1:
                     type='secondary',
                     use_container_width=True
                 )
-            else:
-                st.write("") # 데이터 없으면 공란
-
         with b_col2:
-            # 2. 구글 시트 바로가기 버튼 (자동 연결)
-            # secrets에서 주소를 안전하게 가져옵니다.
             try:
                 sheet_url = st.secrets["connections"]["gsheets"]["spreadsheet"]
             except:
-                sheet_url = "https://docs.google.com/spreadsheets" # 혹시 실패하면 기본 주소
-            
-            st.link_button("📃 시트 열기", sheet_url, use_container_width=True)
+                sheet_url = "https://docs.google.com/spreadsheets"
+            st.link_button("📂 시트 열기", sheet_url, use_container_width=True)
 
     if not existing_data.empty:
         if filter_keyword:
@@ -205,9 +192,22 @@ with tab1:
             for i in sorted(display_data.index, reverse=True):
                 row = display_data.loc[i]
                 with st.expander(f"📖 {row['단어']}"):
-                    st.caption("👇 오른쪽 아이콘을 누르면 복사됩니다.")
-                    st.code(row['단어'], language="text")
                     
+                    # ==========================================================
+                    # 🔥 [여기가 바뀐 부분] 복사하기 반 / 사전 찾기 반
+                    # ==========================================================
+                    col_copy, col_dict = st.columns([1, 1])
+                    
+                    with col_copy:
+                        st.caption("복사하기")
+                        st.code(row['단어'], language="text")
+                        
+                    with col_dict:
+                        st.caption("발음 듣기 (네이버 사전)")
+                        # 네이버 사전 주소 뒤에 단어를 붙여서 바로 이동하게 만듦
+                        dict_url = f"https://en.dict.naver.com/#/search?query={row['단어']}"
+                        st.link_button(f"🔊 {row['단어']} 발음 듣기", dict_url, use_container_width=True)
+
                     c1, c2 = st.columns(2)
                     with c1:
                         new_meaning = st.text_area("뜻", row['뜻'], key=f"m_{i}", height=100)
@@ -253,4 +253,3 @@ with tab2:
         st.link_button("📘 Naver 영어사전", "https://en.dict.naver.com", use_container_width=True)
     
     st.info("💡 Tip: 'DeepL'은 뉘앙스를 살린 번역에, 'Papago'는 한국어 존댓말/반말 구분에 강합니다!")
-
