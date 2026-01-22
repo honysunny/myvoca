@@ -175,7 +175,7 @@ with tab1:
                 sheet_url = st.secrets["connections"]["gsheets"]["spreadsheet"]
             except:
                 sheet_url = "https://docs.google.com/spreadsheets"
-            st.link_button("📂 시트 열기", sheet_url, use_container_width=True)
+            st.link_button("📃 시트 열기", sheet_url, use_container_width=True)
 
     if not existing_data.empty:
         if filter_keyword:
@@ -253,3 +253,4 @@ with tab2:
         st.link_button("📘 Naver 영어사전", "https://en.dict.naver.com", use_container_width=True)
     
     st.info("💡 Tip: 'DeepL'은 뉘앙스를 살린 번역에, 'Papago'는 한국어 존댓말/반말 구분에 강합니다!")
+
