@@ -12,7 +12,7 @@ st.title("🎓 AI 영단어장 ")
 try:
     if "gemini" in st.secrets and "api_key" in st.secrets["gemini"]:
         genai.configure(api_key=st.secrets["gemini"]["api_key"])
-        # 사용자님이 찾으신 황금 모델 유지!
+        # 사용자님이 찾아내신 최적의 모델 유지!
         model = genai.GenerativeModel('gemini-2.5-flash-lite')
     else:
         st.error("🚨 Secrets에 API 키가 없습니다.")
@@ -38,7 +38,7 @@ except:
 tab1, tab2 = st.tabs(["📚 단어장 관리", "🧰 영어 공부 도구함"])
 
 # ==========================================
-# 탭 1: 단어장 (프롬프트 업그레이드됨 ⭐)
+# 탭 1: 단어장
 # ==========================================
 with tab1:
     with st.expander("🔍 단어/숙어 분석 및 추가", expanded=True):
@@ -57,7 +57,7 @@ with tab1:
                 else:
                     with st.spinner(f"AI가 '{input_word}'의 다양한 품사와 뜻을 분석 중..."):
                         try:
-                            # [핵심 수정] 품사(POS)를 섞어서 보여달라고 강력하게 요청
+                            # 품사(POS) 구분 프롬프트 유지
                             prompt = f"""
                             Role: Comprehensive English-Korean Dictionary
                             Input: '{input_word}'
@@ -71,12 +71,6 @@ with tab1:
                             STRICT Output Format:
                             CORRECT_WORD: <Corrected Word>
                             [POS] Korean Meaning @@@ English Example Sentence
-                            
-                            Example Output (for 'address'):
-                            CORRECT_WORD: address
-                            [명사] 주소, 거주지 @@@ Please write your address here.
-                            [동사] 연설하다, 말을 걸다 @@@ He addressed the audience.
-                            [동사] (문제를) 다루다, 해결하다 @@@ We need to address this problem.
                             """
                             response = model.generate_content(prompt)
                             st.session_state['analyzed_result'] = response.text
@@ -113,7 +107,6 @@ with tab1:
             raw_meaning = re.sub(r'^[\d\.\-\)\s]+', '', parts[0].strip())
             raw_example = re.sub(r'^[\d\.\-\)\s]+', '', parts[1].strip())
             
-            # 번호만 붙이고 내용은 그대로 (AI가 [명사]라고 쓴 거 그대로 나옴)
             meanings_list.append(f"{i+1}. {raw_meaning}")
             examples_list.append(f"{i+1}. {raw_example}")
         
@@ -155,26 +148,47 @@ with tab1:
                     except Exception as e:
                         st.error(f"저장 실패: {e}")
 
-    # 목록 및 백업
+    # 목록 및 백업/링크 (여기가 수정되었습니다! ⭐)
     st.divider()
-    col_header, col_backup = st.columns([3, 1])
+    
+    # 버튼 공간을 좀 더 넉넉하게 잡음 (2:1)
+    col_header, col_buttons = st.columns([2, 1])
     
     with col_header:
         st.subheader(f"📝 저장된 단어장 ({len(existing_data)}개)")
         filter_keyword = st.text_input("📂 내 단어장에서 찾기", placeholder="단어 철자나 뜻으로 검색해보세요...")
 
-    with col_backup:
+    with col_buttons:
+        st.write("") # 줄 맞춤용
         st.write("")
-        st.write("")
-        if not existing_data.empty:
-            csv = existing_data.to_csv(index=False).encode('utf-8-sig')
-            st.download_button(
-                label="💾 엑셀 백업",
-                data=csv,
-                file_name='my_voca_backup.csv',
-                mime='text/csv',
-                type='secondary'
-            )
+        
+        # 버튼 두 개를 나란히 배치하기 위해 작은 컬럼 생성
+        b_col1, b_col2 = st.columns(2)
+        
+        with b_col1:
+            # 1. 엑셀 백업 버튼
+            if not existing_data.empty:
+                csv = existing_data.to_csv(index=False).encode('utf-8-sig')
+                st.download_button(
+                    label="💾 엑셀 백업",
+                    data=csv,
+                    file_name='my_voca_backup.csv',
+                    mime='text/csv',
+                    type='secondary',
+                    use_container_width=True
+                )
+            else:
+                st.write("") # 데이터 없으면 공란
+
+        with b_col2:
+            # 2. 구글 시트 바로가기 버튼 (자동 연결)
+            # secrets에서 주소를 안전하게 가져옵니다.
+            try:
+                sheet_url = st.secrets["connections"]["gsheets"]["spreadsheet"]
+            except:
+                sheet_url = "https://docs.google.com/spreadsheets" # 혹시 실패하면 기본 주소
+            
+            st.link_button("📂 시트 열기", sheet_url, use_container_width=True)
 
     if not existing_data.empty:
         if filter_keyword:
@@ -238,5 +252,4 @@ with tab2:
         st.link_button("🦜 Papago (네이버 번역)", "https://papago.naver.com", use_container_width=True)
         st.link_button("📘 Naver 영어사전", "https://en.dict.naver.com", use_container_width=True)
     
-
     st.info("💡 Tip: 'DeepL'은 뉘앙스를 살린 번역에, 'Papago'는 한국어 존댓말/반말 구분에 강합니다!")
