@@ -5,8 +5,8 @@ import google.generativeai as genai
 import re
 
 # 1. 페이지 설정
-st.set_page_config(page_title="완전체 영단어장", page_icon="🎓", layout="wide")
-st.title("🎓 AI 영단어장 ")
+st.set_page_config(page_title="방송대 영단어장", page_icon="🎓", layout="wide")
+st.title("🎓 AI 영단어장 (V8: 과목별 분류)")
 
 # 2. Gemini 설정
 try:
@@ -23,15 +23,34 @@ except Exception as e:
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 try:
-    existing_data = conn.read(worksheet="Sheet1", usecols=[0, 1, 2], ttl=0)
+    # 전체 열을 읽어옵니다
+    existing_data = conn.read(worksheet="Sheet1", ttl=0)
     existing_data = existing_data.dropna(how="all")
+    
+    # 필수 컬럼이 없으면 자동 생성하여 에러 방지
+    for col in ["단어", "뜻", "예문", "과목"]:
+        if col not in existing_data.columns:
+            existing_data[col] = "공통/기타" if col == "과목" else ""
+            
     if not existing_data.empty:
         existing_words = existing_data["단어"].astype(str).str.strip().tolist()
     else:
         existing_words = []
 except:
-    existing_data = pd.DataFrame(columns=["단어", "뜻", "예문"])
+    existing_data = pd.DataFrame(columns=["단어", "뜻", "예문", "과목"])
     existing_words = []
+
+# 전공 과목 리스트 
+SUBJECTS = [
+    "공통/기타",
+    "영문법의 기초", 
+    "영문법의 활용", 
+    "영어교수법", 
+    "테스트영어연습", 
+    "영어회화1", 
+    "영화로 생각하기", 
+    "영작문2"
+]
 
 # 탭 구성
 tab1, tab2 = st.tabs(["📚 단어장 관리", "🧰 영어 공부 도구함"])
@@ -42,14 +61,18 @@ tab1, tab2 = st.tabs(["📚 단어장 관리", "🧰 영어 공부 도구함"])
 with tab1:
     with st.expander("🔍 단어/숙어 분석 및 추가", expanded=True):
         with st.form("search_form", clear_on_submit=True):
-            col_input, col_btn = st.columns([4, 1])
+            col_subj, col_input, col_btn = st.columns([2, 3, 1])
+            with col_subj:
+                selected_subject = st.selectbox("과목 선택", SUBJECTS)
             with col_input:
                 word_input = st.text_input("단어 또는 숙어 입력", placeholder="예: address")
             with col_btn:
+                st.write("") 
                 search_submitted = st.form_submit_button("🔍 분석")
 
             if search_submitted and word_input:
                 input_word = word_input.strip()
+                st.session_state['selected_subject'] = selected_subject
                 
                 if not model:
                     st.error("AI 모델 연결 실패")
@@ -79,6 +102,7 @@ with tab1:
     # 분석 결과 확인
     if 'analyzed_result' in st.session_state and 'analyzed_word' in st.session_state:
         raw_text = st.session_state['analyzed_result']
+        current_subject = st.session_state.get('selected_subject', "공통/기타")
         
         meanings_list = []
         examples_list = []
@@ -114,7 +138,7 @@ with tab1:
         if final_word in existing_words:
             st.warning(f"⚠️ '{final_word}'는 이미 단어장에 있습니다!")
         else:
-            st.info(f"🧐 **{final_word}** (으)로 검색된 결과입니다.")
+            st.info(f"🧐 **{final_word}** ({current_subject}) 검색 결과입니다.")
         
         with st.container():
             col1, col2 = st.columns(2)
@@ -130,11 +154,18 @@ with tab1:
                     st.error("이미 저장된 단어입니다.")
                 else:
                     try:
-                        current_df = conn.read(worksheet="Sheet1", usecols=[0, 1, 2], ttl=0)
+                        current_df = conn.read(worksheet="Sheet1", ttl=0)
+                        
+                        # 안전장치
+                        for col in ["단어", "뜻", "예문", "과목"]:
+                            if col not in current_df.columns:
+                                current_df[col] = "공통/기타" if col == "과목" else ""
+
                         new_entry = pd.DataFrame([{
                             "단어": final_word,
                             "뜻": final_meaning,
-                            "예문": final_example
+                            "예문": final_example,
+                            "과목": current_subject
                         }])
                         updated_data = pd.concat([current_df, new_entry], ignore_index=True)
                         conn.update(worksheet="Sheet1", data=updated_data)
@@ -146,14 +177,24 @@ with tab1:
                     except Exception as e:
                         st.error(f"저장 실패: {e}")
 
-    # 목록 및 백업
+    # 목록 및 백업/링크
     st.divider()
     
     col_header, col_buttons = st.columns([2, 1])
     
     with col_header:
         st.subheader(f"📝 저장된 단어장 ({len(existing_data)}개)")
-        filter_keyword = st.text_input("📂 내 단어장에서 찾기", placeholder="단어 철자나 뜻으로 검색해보세요...")
+        
+        # 검색과 과목 필터
+        filter_col1, filter_col2 = st.columns(2)
+        with filter_col1:
+            filter_keyword = st.text_input("📂 단어/뜻 검색", placeholder="검색어 입력...")
+        with filter_col2:
+            if not existing_data.empty and '과목' in existing_data.columns:
+                available_subjects = ["전체 보기"] + sorted(list(existing_data['과목'].dropna().unique()))
+            else:
+                available_subjects = ["전체 보기"]
+            filter_subject = st.selectbox("📚 과목별 보기", available_subjects)
 
     with col_buttons:
         st.write("")
@@ -175,27 +216,30 @@ with tab1:
                 sheet_url = st.secrets["connections"]["gsheets"]["spreadsheet"]
             except:
                 sheet_url = "https://docs.google.com/spreadsheets"
-            st.link_button("📃 시트 열기", sheet_url, use_container_width=True)
+            st.link_button("📂 시트 열기", sheet_url, use_container_width=True)
 
     if not existing_data.empty:
+        display_data = existing_data.copy()
+        
         if filter_keyword:
-            display_data = existing_data[
-                existing_data['단어'].str.contains(filter_keyword, case=False, na=False) | 
-                existing_data['뜻'].str.contains(filter_keyword, case=False, na=False)
+            display_data = display_data[
+                display_data['단어'].str.contains(filter_keyword, case=False, na=False) | 
+                display_data['뜻'].str.contains(filter_keyword, case=False, na=False)
             ]
-        else:
-            display_data = existing_data
+            
+        if filter_subject != "전체 보기":
+            if '과목' in display_data.columns:
+                display_data = display_data[display_data['과목'] == filter_subject]
 
         if display_data.empty:
-            st.info("검색 결과가 없습니다.")
+            st.info("조건에 맞는 단어가 없습니다.")
         else:
             for i in sorted(display_data.index, reverse=True):
                 row = display_data.loc[i]
-                with st.expander(f"📖 {row['단어']}"):
+                subj_tag = f" [{row['과목']}]" if '과목' in row and pd.notna(row['과목']) else ""
+                
+                with st.expander(f"📖 {row['단어']}{subj_tag}"):
                     
-                    # ==========================================================
-                    # 🔥 [여기가 바뀐 부분] 복사하기 반 / 사전 찾기 반
-                    # ==========================================================
                     col_copy, col_dict = st.columns([1, 1])
                     
                     with col_copy:
@@ -204,7 +248,6 @@ with tab1:
                         
                     with col_dict:
                         st.caption("발음 듣기 (네이버 사전)")
-                        # 네이버 사전 주소 뒤에 단어를 붙여서 바로 이동하게 만듦
                         dict_url = f"https://en.dict.naver.com/#/search?query={row['단어']}"
                         st.link_button(f"🔊 {row['단어']} 발음 듣기", dict_url, use_container_width=True)
 
@@ -214,11 +257,16 @@ with tab1:
                     with c2:
                         new_example = st.text_area("예문", row['예문'], key=f"e_{i}", height=100)
                     
+                    # 과목 수정 기능
+                    current_subj_val = row['과목'] if '과목' in row and pd.notna(row['과목']) else "공통/기타"
+                    new_subj = st.selectbox("과목 변경", SUBJECTS, index=SUBJECTS.index(current_subj_val) if current_subj_val in SUBJECTS else 0, key=f"s_{i}")
+
                     col_save, col_del = st.columns([1, 1])
                     with col_save:
                         if st.button("💾 수정", key=f"save_{i}"):
                             existing_data.at[i, "뜻"] = new_meaning
                             existing_data.at[i, "예문"] = new_example
+                            existing_data.at[i, "과목"] = new_subj
                             conn.update(worksheet="Sheet1", data=existing_data)
                             st.toast("수정 완료!")
                             st.rerun()
@@ -251,6 +299,3 @@ with tab2:
         st.subheader("📚 사전 & 학습")
         st.link_button("🦜 Papago (네이버 번역)", "https://papago.naver.com", use_container_width=True)
         st.link_button("📘 Naver 영어사전", "https://en.dict.naver.com", use_container_width=True)
-    
-    st.info("💡 Tip: 'DeepL'은 뉘앙스를 살린 번역에, 'Papago'는 한국어 존댓말/반말 구분에 강합니다!")
-
