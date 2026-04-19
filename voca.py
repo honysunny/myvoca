@@ -359,7 +359,7 @@ with tab3:
                 f"📝 문제 수 (최대 {max_count}개)",
                 min_value=1,
                 max_value=max(1, max_count),
-                value=min(25, max_count),
+                value=min(10, max_count),
                 step=1
             )
 
@@ -553,7 +553,7 @@ with tab3:
 
         # 정답 공개 전
         if not st.session_state["qz_revealed"]:
-            if st.button("👁️ 정답 보기", use_container_width=True, type="primary"):
+            if st.button("정답 보기", use_container_width=True, type="primary"):
                 st.session_state["qz_revealed"] = True
                 st.rerun()
 
