@@ -442,18 +442,20 @@ with tab3:
                         "틀림": wrong,
                         "정답률(%)": pct,
                     }])
+                    # QuizHistory 시트 존재 확인 — 없으면 write 절대 안 함
                     try:
                         history_df = conn.read(worksheet="QuizHistory", ttl=0)
                         history_df = history_df.dropna(how="all")
-                    except:
-                        history_df = pd.DataFrame(columns=["날짜","과목","모드","총문제","맞음","틀림","정답률(%)"])
+                    except Exception:
+                        st.error("❌ 'QuizHistory' 시트가 없습니다! 구글시트에서 시트 탭을 먼저 만들어주세요.")
+                        st.stop()
                     updated_history = pd.concat([history_df, new_record], ignore_index=True)
                     conn.update(worksheet="QuizHistory", data=updated_history)
                     st.session_state["qz_saved"] = True
                     st.toast("결과 저장 완료! 📊")
                     st.rerun()
                 except Exception as e:
-                    st.error(f"저장 실패: {e}\n구글시트에 'QuizHistory' 시트가 있는지 확인하세요.")
+                    st.error(f"저장 실패: {e}")
         else:
             st.success("✅ 이 결과는 이미 저장됐어요!")
 
