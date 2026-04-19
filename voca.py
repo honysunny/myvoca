@@ -359,7 +359,7 @@ with tab3:
                 f"📝 문제 수 (최대 {max_count}개)",
                 min_value=1,
                 max_value=max(1, max_count),
-                value=min(10, max_count),
+                value=min(25, max_count),
                 step=1
             )
 
@@ -427,38 +427,6 @@ with tab3:
                     st.caption(row["뜻"])
                     st.divider()
 
-        # 결과 저장
-        import datetime
-        if not st.session_state.get("qz_saved", False):
-            if st.button("💾 결과 저장", use_container_width=True):
-                try:
-                    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-                    new_record = pd.DataFrame([{
-                        "날짜": now,
-                        "과목": st.session_state.get("qz_last_subject", "-"),
-                        "모드": st.session_state["qz_mode"],
-                        "총문제": total,
-                        "맞음": correct,
-                        "틀림": wrong,
-                        "정답률(%)": pct,
-                    }])
-                    # QuizHistory 시트 존재 확인 — 없으면 write 절대 안 함
-                    try:
-                        history_df = conn.read(worksheet="QuizHistory", ttl=0)
-                        history_df = history_df.dropna(how="all")
-                    except Exception:
-                        st.error("❌ 'QuizHistory' 시트가 없습니다! 구글시트에서 시트 탭을 먼저 만들어주세요.")
-                        st.stop()
-                    updated_history = pd.concat([history_df, new_record], ignore_index=True)
-                    conn.update(worksheet="QuizHistory", data=updated_history)
-                    st.session_state["qz_saved"] = True
-                    st.toast("결과 저장 완료! 📊")
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"저장 실패: {e}")
-        else:
-            st.success("✅ 이 결과는 이미 저장됐어요!")
-
         st.divider()
 
         col_r1, col_r2 = st.columns(2)
@@ -467,28 +435,11 @@ with tab3:
                 mode = st.session_state["qz_mode"]
                 df_retry = pd.DataFrame(words).drop(columns=["_result"], errors="ignore")
                 start_quiz(df_retry, mode, len(words))
-                st.session_state["qz_saved"] = False
                 st.rerun()
         with col_r2:
             if st.button("🏠 설정 화면으로", use_container_width=True, type="primary"):
                 reset_quiz()
                 st.rerun()
-
-        # 퀴즈 기록 조회
-        st.divider()
-        with st.expander("📊 퀴즈 기록 보기"):
-            try:
-                history_df = conn.read(worksheet="QuizHistory", ttl=0)
-                history_df = history_df.dropna(how="all")
-                if history_df.empty:
-                    st.info("아직 저장된 기록이 없어요.")
-                else:
-                    st.dataframe(
-                        history_df.sort_values("날짜", ascending=False).reset_index(drop=True),
-                        use_container_width=True
-                    )
-            except:
-                st.info("QuizHistory 시트가 없거나 비어 있어요.")
 
     # ---------- 퀴즈 진행 중 ----------
     else:
