@@ -6,7 +6,7 @@ import re
 
 # 1. 페이지 설정
 st.set_page_config(page_title="방송대 영단어장", page_icon="🎓", layout="wide")
-st.title("🎓 AI 영단어장 (V8: 과목별 분류)")
+st.title("🎓 AI 영단어장 (V10: 도구함 개편)")
 
 # 2. Gemini 설정
 try:
@@ -23,11 +23,9 @@ except Exception as e:
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 try:
-    # 전체 열을 읽어옵니다
     existing_data = conn.read(worksheet="Sheet1", ttl=0)
     existing_data = existing_data.dropna(how="all")
     
-    # 필수 컬럼이 없으면 자동 생성하여 에러 방지
     for col in ["단어", "뜻", "예문", "과목"]:
         if col not in existing_data.columns:
             existing_data[col] = "공통/기타" if col == "과목" else ""
@@ -61,18 +59,14 @@ tab1, tab2 = st.tabs(["📚 단어장 관리", "🧰 영어 공부 도구함"])
 with tab1:
     with st.expander("🔍 단어/숙어 분석 및 추가", expanded=True):
         with st.form("search_form", clear_on_submit=True):
-            col_subj, col_input, col_btn = st.columns([2, 3, 1])
-            with col_subj:
-                selected_subject = st.selectbox("과목 선택", SUBJECTS)
+            col_input, col_btn = st.columns([4, 1])
             with col_input:
                 word_input = st.text_input("단어 또는 숙어 입력", placeholder="예: address")
             with col_btn:
-                st.write("") 
                 search_submitted = st.form_submit_button("🔍 분석")
 
             if search_submitted and word_input:
                 input_word = word_input.strip()
-                st.session_state['selected_subject'] = selected_subject
                 
                 if not model:
                     st.error("AI 모델 연결 실패")
@@ -102,7 +96,6 @@ with tab1:
     # 분석 결과 확인
     if 'analyzed_result' in st.session_state and 'analyzed_word' in st.session_state:
         raw_text = st.session_state['analyzed_result']
-        current_subject = st.session_state.get('selected_subject', "공통/기타")
         
         meanings_list = []
         examples_list = []
@@ -138,9 +131,11 @@ with tab1:
         if final_word in existing_words:
             st.warning(f"⚠️ '{final_word}'는 이미 단어장에 있습니다!")
         else:
-            st.info(f"🧐 **{final_word}** ({current_subject}) 검색 결과입니다.")
+            st.info(f"🧐 **{final_word}** 검색 결과입니다.")
         
         with st.container():
+            selected_subject_to_save = st.selectbox("📚 저장할 과목을 선택하세요", SUBJECTS)
+            
             col1, col2 = st.columns(2)
             with col1:
                 final_meaning = st.text_area("🇰🇷 뜻 (품사 포함)", value=default_meaning, height=150)
@@ -156,7 +151,6 @@ with tab1:
                     try:
                         current_df = conn.read(worksheet="Sheet1", ttl=0)
                         
-                        # 안전장치
                         for col in ["단어", "뜻", "예문", "과목"]:
                             if col not in current_df.columns:
                                 current_df[col] = "공통/기타" if col == "과목" else ""
@@ -165,7 +159,7 @@ with tab1:
                             "단어": final_word,
                             "뜻": final_meaning,
                             "예문": final_example,
-                            "과목": current_subject
+                            "과목": selected_subject_to_save
                         }])
                         updated_data = pd.concat([current_df, new_entry], ignore_index=True)
                         conn.update(worksheet="Sheet1", data=updated_data)
@@ -185,7 +179,6 @@ with tab1:
     with col_header:
         st.subheader(f"📝 저장된 단어장 ({len(existing_data)}개)")
         
-        # 검색과 과목 필터
         filter_col1, filter_col2 = st.columns(2)
         with filter_col1:
             filter_keyword = st.text_input("📂 단어/뜻 검색", placeholder="검색어 입력...")
@@ -257,7 +250,6 @@ with tab1:
                     with c2:
                         new_example = st.text_area("예문", row['예문'], key=f"e_{i}", height=100)
                     
-                    # 과목 수정 기능
                     current_subj_val = row['과목'] if '과목' in row and pd.notna(row['과목']) else "공통/기타"
                     new_subj = st.selectbox("과목 변경", SUBJECTS, index=SUBJECTS.index(current_subj_val) if current_subj_val in SUBJECTS else 0, key=f"s_{i}")
 
@@ -291,11 +283,15 @@ with tab2:
     col_t1, col_t2 = st.columns(2)
 
     with col_t1:
-        st.subheader("🤖 AI & 번역")
+        st.subheader("🤖 번역 & 문법")
         st.link_button("🚀 Google Gemini (AI 비서)", "https://gemini.google.com", type="primary", use_container_width=True)
         st.link_button("🧠 DeepL (자연스러운 번역)", "https://www.deepl.com/translator", use_container_width=True)
+        st.link_button("🦜 Papago (네이버 번역)", "https://papago.naver.com", use_container_width=True)
+        st.link_button("✍️ Grammarly (문법 검사기)", "https://app.grammarly.com/", use_container_width=True)
 
     with col_t2:
-        st.subheader("📚 사전 & 학습")
-        st.link_button("🦜 Papago (네이버 번역)", "https://papago.naver.com", use_container_width=True)
-        st.link_button("📘 Naver 영어사전", "https://en.dict.naver.com", use_container_width=True)
+        st.subheader("📺 학습 & 암기")
+        st.link_button("📺 YouGlish (실제 발음 검색)", "https://youglish.com", use_container_width=True)
+        st.link_button("🔁 Anki (플래시카드 암기)", "https://apps.ankiweb.net/", use_container_width=True)
+    
+    st.info("💡 Tip: YouGlish에서 검색하시면 실제 유튜브 영상들 속에서 원어민들이 해당 단어를 발음하는 문장들을 모아볼 수 있습니다.")
